@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Shop Management</title>
+<style>
+body{font-family:Arial;padding:20px;background:#f4f4f4}
+h2{margin-top:40px}
+input,button{padding:8px;margin:5px}
+table{border-collapse:collapse;width:100%;background:white}
+table,th,td{border:1px solid #ddd}
+th,td{padding:10px;text-align:left}
+button{cursor:pointer}
+#suggestions{background:white;border:1px solid #ccc;position:absolute}
+.suggestion-item{padding:5px;cursor:pointer}
+.suggestion-item:hover{background:#eee}
+.cart-box{background:white;padding:10px;margin-top:10px}
+</style>
+</head>
+<body>
+
+<h1>Shop Management Software</h1>
+
+<h2>Add Product</h2>
+<input id="pname" placeholder="Product Name">
+<input id="pcode" placeholder="Product Code">
+<input id="pprice" type="number" placeholder="Price">
+<input id="pqty" type="number" placeholder="Quantity">
+<button onclick="addProduct()">Add Product</button>
+
+<h2>Sale</h2>
+<input id="search" placeholder="Search Product" oninput="searchProduct()">
+<div id="suggestions"></div>
+
+<div class="cart-box">
+<h3>Cart</h3>
+<table id="cartTable">
+<tr>
+<th>Name</th>
+<th>Price</th>
+<th>Qty</th>
+<th>Total</th>
+</tr>
+</table>
+<h3 id="grandTotal">Total: 0</h3>
+<button onclick="checkout()">Checkout</button>
+<button onclick="printBill()">Print Bill</button>
+</div>
+
+<script>
+let products = JSON.parse(localStorage.getItem("products")) || [];
+let cart = [];
+
+function saveProducts(){
+localStorage.setItem("products", JSON.stringify(products));
+}
+
+function addProduct(){
+let name=document.getElementById("pname").value;
+let code=document.getElementById("pcode").value;
+let price=parseFloat(document.getElementById("pprice").value);
+let qty=parseInt(document.getElementById("pqty").value);
+
+if(!name||!code||!price||!qty) return alert("Fill all fields");
+
+products.push({name,code,price,qty});
+saveProducts();
+alert("Product Added");
+}
+
+function searchProduct(){
+let input=document.getElementById("search").value.toLowerCase();
+let suggestionBox=document.getElementById("suggestions");
+suggestionBox.innerHTML="";
+if(!input) return;
+
+let matches=products.filter(p=>p.name.toLowerCase().includes(input));
+matches.forEach(p=>{
+let div=document.createElement("div");
+div.className="suggestion-item";
+div.innerText=p.name+" (Stock:"+p.qty+")";
+div.onclick=function(){addToCart(p)};
+suggestionBox.appendChild(div);
+});
+}
+
+function addToCart(product){
+if(product.qty<=0) return alert("Out of stock");
+
+let existing=cart.find(c=>c.code===product.code);
+if(existing){
+existing.qty+=1;
+}else{
+cart.push({...product, qty:1});
+}
+product.qty-=1;
+saveProducts();
+renderCart();
+document.getElementById("suggestions").innerHTML="";
+document.getElementById("search").value="";
+}
+
+function renderCart(){
+let table=document.getElementById("cartTable");
+table.innerHTML="<tr><th>Name</th><th>Price</th><th>Qty</th><th>Total</th></tr>";
+let total=0;
+cart.forEach(item=>{
+let row=table.insertRow();
+row.insertCell(0).innerText=item.name;
+row.insertCell(1).innerText=item.price;
+row.insertCell(2).innerText=item.qty;
+row.insertCell(3).innerText=item.price*item.qty;
+total+=item.price*item.qty;
+});
+document.getElementById("grandTotal").innerText="Total: "+total;
+}
+
+function checkout(){
+if(cart.length==0) return alert("Cart empty");
+alert("Checkout Complete");
+cart=[];
+renderCart();
+}
+
+function printBill(){
+window.print();
+}
+</script>
+
+</body>
+</html>
