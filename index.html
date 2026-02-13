@@ -15,7 +15,7 @@ button:active{opacity:.8}
 .card{background:white;padding:15px;margin-top:15px;border-radius:10px}
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{border:1px solid #ddd;padding:8px;text-align:left}
-#suggestions{background:white;border:1px solid #ccc;border-radius:6px}
+#suggestions,#restockSuggestions{background:white;border:1px solid #ccc;border-radius:6px}
 .suggestion-item{padding:8px;cursor:pointer}
 .suggestion-item:hover{background:#eee}
 .install-btn{background:green}
@@ -28,17 +28,19 @@ th,td{border:1px solid #ddd;padding:8px;text-align:left}
 <button id="installBtn" class="install-btn" style="display:none">Install App</button>
 
 <div class="card">
-<h3>Add Product</h3>
+<h3>Add / Restock Product</h3>
 <input id="pname" placeholder="Product Name">
-<input id="pcode" placeholder="Product Code">
+<div id="nameSuggestions"></div>
+<input id="pcode" placeholder="Product Code (Alphanumeric)">
+<div id="codeSuggestions"></div>
 <input id="pprice" type="number" placeholder="Price">
 <input id="pqty" type="number" placeholder="Quantity">
-<button onclick="addProduct()">Add Product</button>
+<button onclick="addProduct()">Save Product</button>
 </div>
 
 <div class="card">
 <h3>Sale</h3>
-<input id="search" placeholder="Search product" oninput="searchProduct()">
+<input id="search" placeholder="Search by name or code" oninput="searchProduct()">
 <div id="suggestions"></div>
 
 <table id="cartTable">
@@ -60,8 +62,6 @@ th,td{border:1px solid #ddd;padding:8px;text-align:left}
 </div>
 
 <script>
-/* ================= SHOP LOGIC ================= */
-
 let products=JSON.parse(localStorage.getItem("products"))||[];
 let sales=JSON.parse(localStorage.getItem("sales"))||[];
 let cart=[];
@@ -71,37 +71,105 @@ localStorage.setItem("products",JSON.stringify(products));
 localStorage.setItem("sales",JSON.stringify(sales));
 }
 
-function addProduct(){
-let name=pname.value.trim();
-let code=pcode.value.trim();
-let price=parseFloat(pprice.value);
-let qty=parseInt(pqty.value);
-if(!name||!code||isNaN(price)||isNaN(qty))return alert("Fill correctly");
-products.push({name,code,price,qty});
-save();
-alert("Product Added");
-pname.value="";pcode.value="";pprice.value="";pqty.value="";
+function normalizeCode(code){
+return code.trim().toLowerCase();
 }
 
-function searchProduct(){
-let input=search.value.toLowerCase();
-suggestions.innerHTML="";
+/* ================= ADD OR RESTOCK ================= */
+function addProduct(){
+let name=pname.value.trim();
+let code=normalizeCode(pcode.value);
+let price=parseFloat(pprice.value);
+let qty=parseInt(pqty.value);
+
+if(!name||!code||isNaN(price)||isNaN(qty))
+return alert("Fill correctly");
+
+let existing=products.find(p=>normalizeCode(p.code)===code);
+
+if(existing){
+existing.qty+=qty;
+existing.price=price;
+alert("Product Restocked");
+}else{
+products.push({name:name,code:code,price:price,qty:qty});
+alert("New Product Added");
+}
+
+save();
+pname.value="";pcode.value="";pprice.value="";pqty.value="";
+nameSuggestions.innerHTML="";
+codeSuggestions.innerHTML="";
+}
+
+/* ================= NAME SUGGESTIONS ================= */
+pname.addEventListener("input",()=>{
+let input=pname.value.toLowerCase();
+nameSuggestions.innerHTML="";
 if(!input)return;
+
 products.filter(p=>p.name.toLowerCase().includes(input))
 .forEach(p=>{
 let div=document.createElement("div");
 div.className="suggestion-item";
-div.innerText=p.name+" | Stock:"+p.qty;
+div.innerText="Similar: "+p.name;
+div.onclick=()=>{
+pname.value=p.name;
+pcode.value=p.code;
+pprice.value=p.price;
+};
+nameSuggestions.appendChild(div);
+});
+});
+
+/* ================= CODE SUGGESTIONS ================= */
+pcode.addEventListener("input",()=>{
+let input=normalizeCode(pcode.value);
+codeSuggestions.innerHTML="";
+if(!input)return;
+
+products.filter(p=>normalizeCode(p.code).includes(input))
+.forEach(p=>{
+let div=document.createElement("div");
+div.className="suggestion-item";
+div.innerText="Similar Code: "+p.code+" (Stock:"+p.qty+")";
+div.onclick=()=>{
+pname.value=p.name;
+pcode.value=p.code;
+pprice.value=p.price;
+};
+codeSuggestions.appendChild(div);
+});
+});
+
+/* ================= SALE SEARCH ================= */
+function searchProduct(){
+let input=search.value.toLowerCase();
+suggestions.innerHTML="";
+if(!input)return;
+
+products
+.filter(p=>
+p.name.toLowerCase().includes(input)||
+normalizeCode(p.code).includes(input)
+)
+.forEach(p=>{
+let div=document.createElement("div");
+div.className="suggestion-item";
+div.innerText=p.name+" | Code:"+p.code+" | Stock:"+p.qty;
 div.onclick=()=>addToCart(p);
 suggestions.appendChild(div);
 });
 }
 
+/* ================= ADD TO CART ================= */
 function addToCart(p){
 if(p.qty<=0)return alert("Out of stock");
-let found=cart.find(c=>c.code===p.code);
+
+let found=cart.find(c=>normalizeCode(c.code)===normalizeCode(p.code));
 if(found)found.qty++;
 else cart.push({...p,qty:1});
+
 p.qty--;
 save();
 renderCart();
@@ -109,9 +177,11 @@ search.value="";
 suggestions.innerHTML="";
 }
 
+/* ================= CART ================= */
 function renderCart(){
 cartTable.innerHTML="<tr><th>Name</th><th>Qty</th><th>Total</th></tr>";
 let total=0;
+
 cart.forEach(c=>{
 let row=cartTable.insertRow();
 row.insertCell(0).innerText=c.name;
@@ -119,13 +189,21 @@ row.insertCell(1).innerText=c.qty;
 row.insertCell(2).innerText=c.price*c.qty;
 total+=c.price*c.qty;
 });
+
 grandTotal.innerText="Total: "+total;
 }
 
+/* ================= CHECKOUT ================= */
 function checkout(){
 if(cart.length==0)return alert("Cart empty");
+
 let total=cart.reduce((sum,c)=>sum+(c.price*c.qty),0);
-sales.push({date:new Date().toISOString(),amount:total});
+
+sales.push({
+date:new Date().toISOString(),
+amount:total
+});
+
 save();
 cart=[];
 renderCart();
@@ -134,23 +212,25 @@ alert("Checkout Complete");
 
 function printBill(){window.print();}
 
+/* ================= ANALYTICS ================= */
 function showAnalytics(){
 analyticsBox.style.display="block";
 let today=0,week=0,month=0;
 let now=new Date();
+
 sales.forEach(s=>{
 let d=new Date(s.date);
 if(d.toDateString()==now.toDateString())today+=s.amount;
 if((now-d)/(1000*60*60*24)<=7)week+=s.amount;
-if(d.getMonth()==now.getMonth() && d.getFullYear()==now.getFullYear())month+=s.amount;
+if(d.getMonth()==now.getMonth()&&d.getFullYear()==now.getFullYear())month+=s.amount;
 });
+
 todaySale.innerText="Today Sale: "+today;
 weekSale.innerText="This Week Sale: "+week;
 monthSale.innerText="This Month Sale: "+month;
 }
 
 /* ================= SINGLE FILE PWA ================= */
-
 const manifest={
 name:"Shop Manager",
 short_name:"Shop",
@@ -174,9 +254,7 @@ document.head.appendChild(link);
 
 if("serviceWorker" in navigator){
 const swCode=`
-self.addEventListener('install',e=>{
-self.skipWaiting();
-});
+self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('fetch',e=>{
 e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
 });
@@ -186,7 +264,6 @@ const swURL=URL.createObjectURL(swBlob);
 navigator.serviceWorker.register(swURL);
 }
 
-/* INSTALL BUTTON */
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt',(e)=>{
 e.preventDefault();
