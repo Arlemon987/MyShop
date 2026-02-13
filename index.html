@@ -9,33 +9,41 @@
 <style>
 body{font-family:Arial;margin:0;padding:15px;background:#f2f2f2}
 h1{text-align:center}
-input,button{padding:10px;margin:5px 0;width:100%;box-sizing:border-box;font-size:16px}
+input,button,textarea{padding:10px;margin:5px 0;width:100%;box-sizing:border-box;font-size:16px}
 button{background:#007bff;color:white;border:none;border-radius:6px}
 button:active{opacity:.8}
 .card{background:white;padding:15px;margin-top:15px;border-radius:10px}
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{border:1px solid #ddd;padding:8px;text-align:left}
-#suggestions,#restockSuggestions{background:white;border:1px solid #ccc;border-radius:6px}
 .suggestion-item{padding:8px;cursor:pointer}
 .suggestion-item:hover{background:#eee}
-.install-btn{background:green}
+
+/* PRINT ONLY RECEIPT */
+@media print{
+body *{visibility:hidden}
+#receiptArea, #receiptArea *{visibility:visible}
+#receiptArea{position:absolute;left:0;top:0;width:100%}
+}
 </style>
 </head>
 <body>
 
 <h1>Shop Manager</h1>
 
-<button id="installBtn" class="install-btn" style="display:none">Install App</button>
-
 <div class="card">
 <h3>Add / Restock Product</h3>
 <input id="pname" placeholder="Product Name">
-<div id="nameSuggestions"></div>
-<input id="pcode" placeholder="Product Code (Alphanumeric)">
-<div id="codeSuggestions"></div>
+<input id="pcode" placeholder="Product Code">
 <input id="pprice" type="number" placeholder="Price">
 <input id="pqty" type="number" placeholder="Quantity">
 <button onclick="addProduct()">Save Product</button>
+</div>
+
+<div class="card">
+<h3>Customer Details</h3>
+<input id="cname" placeholder="Customer Name">
+<input id="cphone" placeholder="Phone">
+<textarea id="caddress" placeholder="Address"></textarea>
 </div>
 
 <div class="card">
@@ -49,8 +57,8 @@ th,td{border:1px solid #ddd;padding:8px;text-align:left}
 
 <h3 id="grandTotal">Total: 0</h3>
 
-<button onclick="checkout()">Checkout</button>
-<button onclick="printBill()">Print Bill</button>
+<button onclick="checkoutOnly()">Checkout Only</button>
+<button onclick="printAndCheckout()">Print Bill</button>
 <button onclick="showAnalytics()">Sales Analytics</button>
 </div>
 
@@ -59,6 +67,17 @@ th,td{border:1px solid #ddd;padding:8px;text-align:left}
 <p id="todaySale"></p>
 <p id="weekSale"></p>
 <p id="monthSale"></p>
+</div>
+
+<!-- RECEIPT AREA -->
+<div id="receiptArea" style="display:none;padding:20px;background:white">
+<h2 style="text-align:center">Receipt</h2>
+<p id="rDate"></p>
+<p id="rCustomer"></p>
+<table id="receiptTable" style="width:100%;border-collapse:collapse">
+</table>
+<h3 id="rTotal"></h3>
+<p style="text-align:center">Thank You</p>
 </div>
 
 <script>
@@ -75,7 +94,7 @@ function normalizeCode(code){
 return code.trim().toLowerCase();
 }
 
-/* ================= ADD OR RESTOCK ================= */
+/* ADD / RESTOCK */
 function addProduct(){
 let name=pname.value.trim();
 let code=normalizeCode(pcode.value);
@@ -92,77 +111,33 @@ existing.qty+=qty;
 existing.price=price;
 alert("Product Restocked");
 }else{
-products.push({name:name,code:code,price:price,qty:qty});
+products.push({name,code,price,qty});
 alert("New Product Added");
 }
 
 save();
 pname.value="";pcode.value="";pprice.value="";pqty.value="";
-nameSuggestions.innerHTML="";
-codeSuggestions.innerHTML="";
 }
 
-/* ================= NAME SUGGESTIONS ================= */
-pname.addEventListener("input",()=>{
-let input=pname.value.toLowerCase();
-nameSuggestions.innerHTML="";
-if(!input)return;
-
-products.filter(p=>p.name.toLowerCase().includes(input))
-.forEach(p=>{
-let div=document.createElement("div");
-div.className="suggestion-item";
-div.innerText="Similar: "+p.name;
-div.onclick=()=>{
-pname.value=p.name;
-pcode.value=p.code;
-pprice.value=p.price;
-};
-nameSuggestions.appendChild(div);
-});
-});
-
-/* ================= CODE SUGGESTIONS ================= */
-pcode.addEventListener("input",()=>{
-let input=normalizeCode(pcode.value);
-codeSuggestions.innerHTML="";
-if(!input)return;
-
-products.filter(p=>normalizeCode(p.code).includes(input))
-.forEach(p=>{
-let div=document.createElement("div");
-div.className="suggestion-item";
-div.innerText="Similar Code: "+p.code+" (Stock:"+p.qty+")";
-div.onclick=()=>{
-pname.value=p.name;
-pcode.value=p.code;
-pprice.value=p.price;
-};
-codeSuggestions.appendChild(div);
-});
-});
-
-/* ================= SALE SEARCH ================= */
+/* SEARCH */
 function searchProduct(){
 let input=search.value.toLowerCase();
 suggestions.innerHTML="";
 if(!input)return;
 
-products
-.filter(p=>
+products.filter(p=>
 p.name.toLowerCase().includes(input)||
 normalizeCode(p.code).includes(input)
-)
-.forEach(p=>{
+).forEach(p=>{
 let div=document.createElement("div");
 div.className="suggestion-item";
-div.innerText=p.name+" | Code:"+p.code+" | Stock:"+p.qty;
+div.innerText=p.name+" | Stock:"+p.qty;
 div.onclick=()=>addToCart(p);
 suggestions.appendChild(div);
 });
 }
 
-/* ================= ADD TO CART ================= */
+/* ADD TO CART */
 function addToCart(p){
 if(p.qty<=0)return alert("Out of stock");
 
@@ -177,7 +152,7 @@ search.value="";
 suggestions.innerHTML="";
 }
 
-/* ================= CART ================= */
+/* CART RENDER */
 function renderCart(){
 cartTable.innerHTML="<tr><th>Name</th><th>Qty</th><th>Total</th></tr>";
 let total=0;
@@ -193,15 +168,16 @@ total+=c.price*c.qty;
 grandTotal.innerText="Total: "+total;
 }
 
-/* ================= CHECKOUT ================= */
-function checkout(){
+/* CHECKOUT ONLY */
+function checkoutOnly(){
 if(cart.length==0)return alert("Cart empty");
 
 let total=cart.reduce((sum,c)=>sum+(c.price*c.qty),0);
 
 sales.push({
 date:new Date().toISOString(),
-amount:total
+amount:total,
+customer:cname.value
 });
 
 save();
@@ -210,9 +186,47 @@ renderCart();
 alert("Checkout Complete");
 }
 
-function printBill(){window.print();}
+/* PRINT + AUTO CHECKOUT */
+function printAndCheckout(){
+if(cart.length==0)return alert("Cart empty");
 
-/* ================= ANALYTICS ================= */
+let total=cart.reduce((sum,c)=>sum+(c.price*c.qty),0);
+
+sales.push({
+date:new Date().toISOString(),
+amount:total,
+customer:cname.value
+});
+
+save();
+
+/* BUILD RECEIPT */
+receiptArea.style.display="block";
+rDate.innerText="Date: "+new Date().toLocaleString();
+rCustomer.innerText="Customer: "+cname.value+" | Phone: "+cphone.value+" | "+caddress.value;
+
+receiptTable.innerHTML="<tr><th>Item</th><th>Qty</th><th>Total</th></tr>";
+
+cart.forEach(c=>{
+let row=receiptTable.insertRow();
+row.insertCell(0).innerText=c.name;
+row.insertCell(1).innerText=c.qty;
+row.insertCell(2).innerText=c.price*c.qty;
+});
+
+rTotal.innerText="Grand Total: "+total;
+
+/* PRINT */
+window.print();
+
+/* RESET AFTER PRINT */
+cart=[];
+renderCart();
+cname.value="";cphone.value="";caddress.value="";
+receiptArea.style.display="none";
+}
+
+/* ANALYTICS */
 function showAnalytics(){
 analyticsBox.style.display="block";
 let today=0,week=0,month=0;
@@ -229,55 +243,6 @@ todaySale.innerText="Today Sale: "+today;
 weekSale.innerText="This Week Sale: "+week;
 monthSale.innerText="This Month Sale: "+month;
 }
-
-/* ================= SINGLE FILE PWA ================= */
-const manifest={
-name:"Shop Manager",
-short_name:"Shop",
-start_url:".",
-display:"standalone",
-background_color:"#ffffff",
-theme_color:"#007bff",
-icons:[{
-src:"https://cdn-icons-png.flaticon.com/512/263/263142.png",
-sizes:"192x192",
-type:"image/png"
-}]
-};
-
-const manifestBlob=new Blob([JSON.stringify(manifest)],{type:"application/json"});
-const manifestURL=URL.createObjectURL(manifestBlob);
-const link=document.createElement("link");
-link.rel="manifest";
-link.href=manifestURL;
-document.head.appendChild(link);
-
-if("serviceWorker" in navigator){
-const swCode=`
-self.addEventListener('install',e=>self.skipWaiting());
-self.addEventListener('fetch',e=>{
-e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
-});
-`;
-const swBlob=new Blob([swCode],{type:"text/javascript"});
-const swURL=URL.createObjectURL(swBlob);
-navigator.serviceWorker.register(swURL);
-}
-
-let deferredPrompt;
-window.addEventListener('beforeinstallprompt',(e)=>{
-e.preventDefault();
-deferredPrompt=e;
-installBtn.style.display="block";
-});
-
-installBtn.addEventListener("click",()=>{
-if(deferredPrompt){
-deferredPrompt.prompt();
-deferredPrompt=null;
-installBtn.style.display="none";
-}
-});
 </script>
 
 </body>
