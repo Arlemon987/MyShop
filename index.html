@@ -4,26 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Shop Manager</title>
-<meta name="theme-color" content="#007bff">
 
 <style>
 body{font-family:Arial;margin:0;padding:15px;background:#f2f2f2}
 h1{text-align:center}
 input,button,textarea{padding:10px;margin:5px 0;width:100%;box-sizing:border-box;font-size:16px}
 button{background:#007bff;color:white;border:none;border-radius:6px}
-button:active{opacity:.8}
 .card{background:white;padding:15px;margin-top:15px;border-radius:10px}
 table{width:100%;border-collapse:collapse;margin-top:10px}
 th,td{border:1px solid #ddd;padding:8px;text-align:left}
+.suggestions-box{background:white;border:1px solid #ccc;border-radius:6px}
 .suggestion-item{padding:8px;cursor:pointer}
 .suggestion-item:hover{background:#eee}
-
-/* PRINT ONLY RECEIPT */
-@media print{
-body *{visibility:hidden}
-#receiptArea, #receiptArea *{visibility:visible}
-#receiptArea{position:absolute;left:0;top:0;width:100%}
-}
 </style>
 </head>
 <body>
@@ -33,7 +25,11 @@ body *{visibility:hidden}
 <div class="card">
 <h3>Add / Restock Product</h3>
 <input id="pname" placeholder="Product Name">
+<div id="nameSuggestions" class="suggestions-box"></div>
+
 <input id="pcode" placeholder="Product Code">
+<div id="codeSuggestions" class="suggestions-box"></div>
+
 <input id="pprice" type="number" placeholder="Price">
 <input id="pqty" type="number" placeholder="Quantity">
 <button onclick="addProduct()">Save Product</button>
@@ -49,7 +45,7 @@ body *{visibility:hidden}
 <div class="card">
 <h3>Sale</h3>
 <input id="search" placeholder="Search by name or code" oninput="searchProduct()">
-<div id="suggestions"></div>
+<div id="suggestions" class="suggestions-box"></div>
 
 <table id="cartTable">
 <tr><th>Name</th><th>Qty</th><th>Total</th></tr>
@@ -57,7 +53,6 @@ body *{visibility:hidden}
 
 <h3 id="grandTotal">Total: 0</h3>
 
-<button onclick="checkoutOnly()">Checkout Only</button>
 <button onclick="printAndCheckout()">Print Bill</button>
 <button onclick="showAnalytics()">Sales Analytics</button>
 </div>
@@ -67,17 +62,6 @@ body *{visibility:hidden}
 <p id="todaySale"></p>
 <p id="weekSale"></p>
 <p id="monthSale"></p>
-</div>
-
-<!-- RECEIPT AREA -->
-<div id="receiptArea" style="display:none;padding:20px;background:white">
-<h2 style="text-align:center">Receipt</h2>
-<p id="rDate"></p>
-<p id="rCustomer"></p>
-<table id="receiptTable" style="width:100%;border-collapse:collapse">
-</table>
-<h3 id="rTotal"></h3>
-<p style="text-align:center">Thank You</p>
 </div>
 
 <script>
@@ -94,7 +78,7 @@ function normalizeCode(code){
 return code.trim().toLowerCase();
 }
 
-/* ADD / RESTOCK */
+/* ================= ADD / RESTOCK ================= */
 function addProduct(){
 let name=pname.value.trim();
 let code=normalizeCode(pcode.value);
@@ -117,9 +101,51 @@ alert("New Product Added");
 
 save();
 pname.value="";pcode.value="";pprice.value="";pqty.value="";
+nameSuggestions.innerHTML="";
+codeSuggestions.innerHTML="";
 }
 
-/* SEARCH */
+/* ================= NAME SUGGESTIONS ================= */
+pname.addEventListener("input",()=>{
+let input=pname.value.toLowerCase();
+nameSuggestions.innerHTML="";
+if(!input)return;
+
+products.filter(p=>p.name.toLowerCase().includes(input))
+.forEach(p=>{
+let div=document.createElement("div");
+div.className="suggestion-item";
+div.innerText=p.name+" (Stock:"+p.qty+")";
+div.onclick=()=>{
+pname.value=p.name;
+pcode.value=p.code;
+pprice.value=p.price;
+};
+nameSuggestions.appendChild(div);
+});
+});
+
+/* ================= CODE SUGGESTIONS ================= */
+pcode.addEventListener("input",()=>{
+let input=normalizeCode(pcode.value);
+codeSuggestions.innerHTML="";
+if(!input)return;
+
+products.filter(p=>normalizeCode(p.code).includes(input))
+.forEach(p=>{
+let div=document.createElement("div");
+div.className="suggestion-item";
+div.innerText=p.code+" | "+p.name+" (Stock:"+p.qty+")";
+div.onclick=()=>{
+pname.value=p.name;
+pcode.value=p.code;
+pprice.value=p.price;
+};
+codeSuggestions.appendChild(div);
+});
+});
+
+/* ================= SALE SEARCH ================= */
 function searchProduct(){
 let input=search.value.toLowerCase();
 suggestions.innerHTML="";
@@ -137,7 +163,7 @@ suggestions.appendChild(div);
 });
 }
 
-/* ADD TO CART */
+/* ================= ADD TO CART ================= */
 function addToCart(p){
 if(p.qty<=0)return alert("Out of stock");
 
@@ -152,7 +178,7 @@ search.value="";
 suggestions.innerHTML="";
 }
 
-/* CART RENDER */
+/* ================= CART ================= */
 function renderCart(){
 cartTable.innerHTML="<tr><th>Name</th><th>Qty</th><th>Total</th></tr>";
 let total=0;
@@ -168,25 +194,7 @@ total+=c.price*c.qty;
 grandTotal.innerText="Total: "+total;
 }
 
-/* CHECKOUT ONLY */
-function checkoutOnly(){
-if(cart.length==0)return alert("Cart empty");
-
-let total=cart.reduce((sum,c)=>sum+(c.price*c.qty),0);
-
-sales.push({
-date:new Date().toISOString(),
-amount:total,
-customer:cname.value
-});
-
-save();
-cart=[];
-renderCart();
-alert("Checkout Complete");
-}
-
-/* PRINT + AUTO CHECKOUT */
+/* ================= PRINT + CHECKOUT ================= */
 function printAndCheckout(){
 if(cart.length==0)return alert("Cart empty");
 
@@ -197,36 +205,61 @@ date:new Date().toISOString(),
 amount:total,
 customer:cname.value
 });
-
 save();
 
-/* BUILD RECEIPT */
-receiptArea.style.display="block";
-rDate.innerText="Date: "+new Date().toLocaleString();
-rCustomer.innerText="Customer: "+cname.value+" | Phone: "+cphone.value+" | "+caddress.value;
+/* CREATE RECEIPT WINDOW */
+let receiptWindow=window.open("","PRINT","height=600,width=400");
 
-receiptTable.innerHTML="<tr><th>Item</th><th>Qty</th><th>Total</th></tr>";
+receiptWindow.document.write(`
+<html>
+<head>
+<title>Receipt</title>
+<style>
+body{font-family:Arial;padding:20px}
+table{width:100%;border-collapse:collapse}
+th,td{border:1px solid #000;padding:5px;text-align:left}
+</style>
+</head>
+<body>
+<h2 style="text-align:center">Receipt</h2>
+<p>Date: ${new Date().toLocaleString()}</p>
+<p>Customer: ${cname.value}</p>
+<p>Phone: ${cphone.value}</p>
+<p>Address: ${caddress.value}</p>
+<table>
+<tr><th>Item</th><th>Qty</th><th>Total</th></tr>
+`);
 
 cart.forEach(c=>{
-let row=receiptTable.insertRow();
-row.insertCell(0).innerText=c.name;
-row.insertCell(1).innerText=c.qty;
-row.insertCell(2).innerText=c.price*c.qty;
+receiptWindow.document.write(`
+<tr>
+<td>${c.name}</td>
+<td>${c.qty}</td>
+<td>${c.price*c.qty}</td>
+</tr>
+`);
 });
 
-rTotal.innerText="Grand Total: "+total;
+receiptWindow.document.write(`
+</table>
+<h3>Grand Total: ${total}</h3>
+<p style="text-align:center">Thank You</p>
+</body>
+</html>
+`);
 
-/* PRINT */
-window.print();
+receiptWindow.document.close();
+receiptWindow.focus();
+receiptWindow.print();
+receiptWindow.close();
 
-/* RESET AFTER PRINT */
+/* RESET */
 cart=[];
 renderCart();
 cname.value="";cphone.value="";caddress.value="";
-receiptArea.style.display="none";
 }
 
-/* ANALYTICS */
+/* ================= ANALYTICS ================= */
 function showAnalytics(){
 analyticsBox.style.display="block";
 let today=0,week=0,month=0;
