@@ -1,128 +1,206 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Shop Management</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop Manager</title>
+
+<!-- PWA META -->
+<meta name="theme-color" content="#007bff">
+
 <style>
-body{font-family:Arial;padding:20px;background:#f4f4f4}
-h2{margin-top:40px}
-input,button{padding:8px;margin:5px}
-table{border-collapse:collapse;width:100%;background:white}
-table,th,td{border:1px solid #ddd}
-th,td{padding:10px;text-align:left}
-button{cursor:pointer}
-#suggestions{background:white;border:1px solid #ccc;position:absolute}
-.suggestion-item{padding:5px;cursor:pointer}
+body{font-family:Arial;margin:0;padding:15px;background:#f2f2f2}
+h1{text-align:center}
+input,button{padding:10px;margin:5px 0;width:100%;box-sizing:border-box;font-size:16px}
+button{background:#007bff;color:white;border:none;border-radius:6px}
+button:active{opacity:.8}
+.card{background:white;padding:15px;margin-top:15px;border-radius:10px}
+table{width:100%;border-collapse:collapse;margin-top:10px}
+th,td{border:1px solid #ddd;padding:8px;text-align:left}
+#suggestions{background:white;border:1px solid #ccc;border-radius:6px}
+.suggestion-item{padding:8px;cursor:pointer}
 .suggestion-item:hover{background:#eee}
-.cart-box{background:white;padding:10px;margin-top:10px}
+@media(min-width:600px){
+.row{display:flex;gap:10px}
+.row input{flex:1}
+}
 </style>
 </head>
 <body>
 
-<h1>Shop Management Software</h1>
+<h1>Shop Manager</h1>
 
-<h2>Add Product</h2>
+<div class="card">
+<h3>Add Product</h3>
+<div class="row">
 <input id="pname" placeholder="Product Name">
 <input id="pcode" placeholder="Product Code">
+</div>
+<div class="row">
 <input id="pprice" type="number" placeholder="Price">
 <input id="pqty" type="number" placeholder="Quantity">
+</div>
 <button onclick="addProduct()">Add Product</button>
+</div>
 
-<h2>Sale</h2>
-<input id="search" placeholder="Search Product" oninput="searchProduct()">
+<div class="card">
+<h3>Sale</h3>
+<input id="search" placeholder="Search product" oninput="searchProduct()">
 <div id="suggestions"></div>
 
-<div class="cart-box">
-<h3>Cart</h3>
 <table id="cartTable">
 <tr>
 <th>Name</th>
-<th>Price</th>
 <th>Qty</th>
 <th>Total</th>
 </tr>
 </table>
+
 <h3 id="grandTotal">Total: 0</h3>
+
 <button onclick="checkout()">Checkout</button>
 <button onclick="printBill()">Print Bill</button>
+<button onclick="showAnalytics()">Sales Analytics</button>
+</div>
+
+<div class="card" id="analyticsBox" style="display:none">
+<h3>Sales Report</h3>
+<p id="todaySale"></p>
+<p id="weekSale"></p>
+<p id="monthSale"></p>
 </div>
 
 <script>
-let products = JSON.parse(localStorage.getItem("products")) || [];
-let cart = [];
+let products=JSON.parse(localStorage.getItem("products"))||[];
+let sales=JSON.parse(localStorage.getItem("sales"))||[];
+let cart=[];
 
-function saveProducts(){
-localStorage.setItem("products", JSON.stringify(products));
+function save(){
+localStorage.setItem("products",JSON.stringify(products));
+localStorage.setItem("sales",JSON.stringify(sales));
 }
 
 function addProduct(){
-let name=document.getElementById("pname").value;
-let code=document.getElementById("pcode").value;
-let price=parseFloat(document.getElementById("pprice").value);
-let qty=parseInt(document.getElementById("pqty").value);
+let name=pname.value.trim();
+let code=pcode.value.trim();
+let price=parseFloat(pprice.value);
+let qty=parseInt(pqty.value);
 
-if(!name||!code||!price||!qty) return alert("Fill all fields");
+if(!name||!code||isNaN(price)||isNaN(qty))return alert("Fill all fields correctly");
 
 products.push({name,code,price,qty});
-saveProducts();
+save();
 alert("Product Added");
+pname.value="";pcode.value="";pprice.value="";pqty.value="";
 }
 
 function searchProduct(){
-let input=document.getElementById("search").value.toLowerCase();
-let suggestionBox=document.getElementById("suggestions");
-suggestionBox.innerHTML="";
-if(!input) return;
+let input=search.value.toLowerCase();
+suggestions.innerHTML="";
+if(!input)return;
 
-let matches=products.filter(p=>p.name.toLowerCase().includes(input));
-matches.forEach(p=>{
+products.filter(p=>p.name.toLowerCase().includes(input))
+.forEach(p=>{
 let div=document.createElement("div");
 div.className="suggestion-item";
-div.innerText=p.name+" (Stock:"+p.qty+")";
-div.onclick=function(){addToCart(p)};
-suggestionBox.appendChild(div);
+div.innerText=p.name+" | Stock:"+p.qty;
+div.onclick=()=>addToCart(p);
+suggestions.appendChild(div);
 });
 }
 
-function addToCart(product){
-if(product.qty<=0) return alert("Out of stock");
+function addToCart(p){
+if(p.qty<=0)return alert("Out of stock");
 
-let existing=cart.find(c=>c.code===product.code);
-if(existing){
-existing.qty+=1;
-}else{
-cart.push({...product, qty:1});
-}
-product.qty-=1;
-saveProducts();
+let found=cart.find(c=>c.code===p.code);
+if(found)found.qty++;
+else cart.push({...p,qty:1});
+
+p.qty--;
+save();
 renderCart();
-document.getElementById("suggestions").innerHTML="";
-document.getElementById("search").value="";
+search.value="";
+suggestions.innerHTML="";
 }
 
 function renderCart(){
-let table=document.getElementById("cartTable");
-table.innerHTML="<tr><th>Name</th><th>Price</th><th>Qty</th><th>Total</th></tr>";
+cartTable.innerHTML="<tr><th>Name</th><th>Qty</th><th>Total</th></tr>";
 let total=0;
-cart.forEach(item=>{
-let row=table.insertRow();
-row.insertCell(0).innerText=item.name;
-row.insertCell(1).innerText=item.price;
-row.insertCell(2).innerText=item.qty;
-row.insertCell(3).innerText=item.price*item.qty;
-total+=item.price*item.qty;
+
+cart.forEach(c=>{
+let row=cartTable.insertRow();
+row.insertCell(0).innerText=c.name;
+row.insertCell(1).innerText=c.qty;
+row.insertCell(2).innerText=c.price*c.qty;
+total+=c.price*c.qty;
 });
-document.getElementById("grandTotal").innerText="Total: "+total;
+
+grandTotal.innerText="Total: "+total;
 }
 
 function checkout(){
-if(cart.length==0) return alert("Cart empty");
-alert("Checkout Complete");
+if(cart.length==0)return alert("Cart empty");
+
+let total=cart.reduce((sum,c)=>sum+(c.price*c.qty),0);
+
+sales.push({
+date:new Date().toISOString(),
+amount:total
+});
+
+save();
 cart=[];
 renderCart();
+alert("Checkout Complete");
 }
 
 function printBill(){
 window.print();
+}
+
+function showAnalytics(){
+analyticsBox.style.display="block";
+
+let today=0,week=0,month=0;
+let now=new Date();
+
+sales.forEach(s=>{
+let d=new Date(s.date);
+
+if(d.toDateString()==now.toDateString())
+today+=s.amount;
+
+if((now-d)/(1000*60*60*24)<=7)
+week+=s.amount;
+
+if(d.getMonth()==now.getMonth() && d.getFullYear()==now.getFullYear())
+month+=s.amount;
+});
+
+todaySale.innerText="Today Sale: "+today;
+weekSale.innerText="This Week Sale: "+week;
+monthSale.innerText="This Month Sale: "+month;
+}
+
+/* PWA SERVICE WORKER INLINE */
+if('serviceWorker' in navigator){
+let swCode=`
+self.addEventListener('install',e=>{
+e.waitUntil(
+caches.open('shop-cache').then(cache=>{
+return cache.addAll(['./']);
+})
+);
+});
+self.addEventListener('fetch',e=>{
+e.respondWith(
+caches.match(e.request).then(res=>res||fetch(e.request))
+);
+});
+`;
+let blob=new Blob([swCode],{type:'text/javascript'});
+let swURL=URL.createObjectURL(blob);
+navigator.serviceWorker.register(swURL);
 }
 </script>
 
